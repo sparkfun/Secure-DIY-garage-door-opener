@@ -9,6 +9,10 @@ RH_RF95 rf95(12, 6);
 
 int LED = 13; //Status LED on pin 13
 
+int successLED = 3; // green
+int failLED = 4; // red
+int statLED = 2; // blue
+
 int packetCounter = 0; //Counts the number of packets sent
 long timeSinceLastPacket = 0; //Tracks the time stamp of last packet received
 // The broadcast frequency is set to 921.2, but the SADM21 ProRf operates
@@ -17,6 +21,8 @@ long timeSinceLastPacket = 0; //Tracks the time stamp of last packet received
 // 868MHz.This works but it is unknown how well the radio configures to this frequency:
 //float frequency = 864.1;
 float frequency = 921.2;
+
+uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
 
 /////////////////crypto
 
@@ -44,11 +50,14 @@ uint8_t AlicesPublicKey[64] = {
 void setup()
 {
   pinMode(LED, OUTPUT);
+  pinMode(successLED, OUTPUT);
+  pinMode(failLED, OUTPUT);
+  pinMode(statLED, OUTPUT);
 
   SerialUSB.begin(115200);
   // It may be difficult to read serial messages on startup. The following
   // line will wait for serial to be ready before continuing. Comment out if not needed.
-  while (!SerialUSB);
+  //while (!SerialUSB);
   SerialUSB.println("RFM Server!");
 
   //Initialize the Radio.
@@ -73,6 +82,8 @@ void setup()
   // rf95.setTxPower(14, false);
 
 
+  Wire.begin();
+
   if (atecc.begin() == true)
   {
     SerialUSB.println("Successful wakeUp(). I2C connections are good.");
@@ -89,7 +100,7 @@ void loop()
 {
   if (rf95.available()) {
     // Should be a message for us now
-    uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
+
     uint8_t len = sizeof(buf);
 
     if (rf95.recv(buf, &len)) {
@@ -97,30 +108,48 @@ void loop()
       timeSinceLastPacket = millis(); //Timestamp this packet
 
       SerialUSB.print("Got message: ");
-      SerialUSB.print((char*)buf);
+      printBuf64();
       //SerialUSB.print(" RSSI: ");
       //SerialUSB.print(rf95.lastRssi(), DEC);
       SerialUSB.println();
 
-      // Send a reply
-
-            SerialUSB.print("Creating a new random TTL-token now...");
-
-      // update library instance public variable.
-      atecc.updateRandom32Bytes();
- 
-      uint8_t toSend[32];
-      // copy from library public variable into our local variable
-      // also send each byte  to Alice.
-      for (int i = 0 ; i < 32 ; i++)
+      // if message from Alice is "$$$", Send a random token for her to sign.
+      if (buf[0] == '$' && buf[1] == '$' && buf[2] == '$')
       {
-        toSend[i] = atecc.random32Bytes[i]; // store locally
-      }
+        SerialUSB.println("Received $$$. Creating a new random TTL-token now...");
 
-      rf95.send(toSend, sizeof(toSend));
-      rf95.waitPacketSent();
-      SerialUSB.println("Sent a reply");
-      digitalWrite(LED, LOW); //Turn off status LED
+        // update library instance public variable.
+        atecc.updateRandom32Bytes();
+
+        uint8_t toSend[32];
+        // copy from library public variable into our local variable
+        for (int i = 0 ; i < 32 ; i++)
+        {
+          token[i] = atecc.random32Bytes[i]; // store locally
+        }
+
+        rf95.send(token, sizeof(token));
+        rf95.waitPacketSent();
+        SerialUSB.println("Sent token");
+        digitalWrite(LED, LOW); //Turn off status LED
+      }
+      else // this means Alice just sent us a signature
+      {
+        SerialUSB.println("Received signature. Verifying now...");
+        for (int i = 0 ; i < 64 ; i++) signature[i] = buf[i]; // read in signature from buffer.
+        printSignature();
+        // Let's verirfy!
+        if (atecc.verifySignature(token, signature, AlicesPublicKey))
+        {
+          SerialUSB.println("Success! Signature Verified.");
+          blinkStatus(successLED);
+        }
+        else
+        {
+          SerialUSB.println("Verification failure.");
+          blinkStatus(failLED);
+        }
+      }
 
     }
     else
@@ -130,5 +159,51 @@ void loop()
   if (millis() - timeSinceLastPacket > 1000) {
     digitalWrite(LED, LOW); //Turn off status LED
     timeSinceLastPacket = millis(); //Don't write LED but every 1s
+    clearBuf();
   }
+}
+
+
+void printSignature()
+{
+  SerialUSB.println("uint8_t signature[64] = {");
+  for (int i = 0; i < sizeof(signature) ; i++)
+  {
+    SerialUSB.print("0x");
+    if ((signature[i] >> 4) == 0) SerialUSB.print("0"); // print preceeding high nibble if it's zero
+    SerialUSB.print(signature[i], HEX);
+    if (i != 63) SerialUSB.print(", ");
+    if ((63 - i) % 16 == 0) SerialUSB.println();
+  }
+  SerialUSB.println("};");
+  SerialUSB.println();
+}
+
+void printBuf64()
+{
+  SerialUSB.println();
+  SerialUSB.println("uint8_t buf[64] = {");
+  for (int i = 0; i < 64 ; i++)
+  {
+    SerialUSB.print("0x");
+    if ((buf[i] >> 4) == 0) SerialUSB.print("0"); // print preceeding high nibble if it's zero
+    SerialUSB.print(buf[i], HEX);
+    if (i != 63) SerialUSB.print(", ");
+    if ((63 - i) % 16 == 0) SerialUSB.println();
+  }
+  SerialUSB.println("};");
+  SerialUSB.println();
+}
+
+void clearBuf()
+{
+  for (int i = 0; i < 64 ; i++) buf[i] = 0x00;
+}
+
+void blinkStatus(int LED)
+{
+  digitalWrite(LED, HIGH);
+  delay(2000);
+  digitalWrite(LED, LOW);
+  delay(500);
 }
