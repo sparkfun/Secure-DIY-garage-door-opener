@@ -58,11 +58,11 @@ void setup()
   }
   else {
     //An LED inidicator to let us know radio initialization has completed.
-    SerialUSB.println("Transmitter up!");
-    digitalWrite(LED, HIGH);
-    delay(500);
-    digitalWrite(LED, LOW);
-    delay(500);
+    //SerialUSB.println("Transmitter up!");
+    //digitalWrite(LED, HIGH);
+    //delay(500);
+    //digitalWrite(LED, LOW);
+    //delay(500);
   }
 
   // Set frequency
@@ -88,6 +88,8 @@ void setup()
     while (1); // stall out forever
   }
 
+  attempt_cycle();
+
 }
 
 
@@ -96,54 +98,7 @@ void loop()
 
   if (digitalRead(5) == LOW)
   {
-    SerialUSB.println("Sending message");
-
-    //Send a message to the other radio
-    uint8_t toSend[] = "$$$";
-    //sprintf(toSend, "Hi, my counter is: %d", packetCounter++);
-    rf95.send(toSend, sizeof(toSend));
-    rf95.waitPacketSent();
-
-    // Now wait for a reply
-
-    byte len = sizeof(buf);
-
-    if (rf95.waitAvailableTimeout(2000)) {
-      // Should be a reply message for us now
-      if (rf95.recv(buf, &len)) {
-        SerialUSB.print("Got reply: ");
-        printBuf64();
-        for (int i = 0 ; i < 32 ; i++) token[i] = buf[i]; // read in token from buffer.
-        printToken(); // nice debug to see what token we just sent. see function below
-
-        boolean sigStat = false;
-        sigStat = atecc.createSignature(token); // by default, this uses the private key securely stored and locked in slot 0.
-
-        SerialUSB.print("sigStat: ");
-        SerialUSB.println(sigStat);
-        
-        //printSignature();
-
-
-        // Copy our signature from library array to local toSend array
-        //for (int i = 0 ; i < 64 ; i++) toSend[i] = atecc.signature[i]; // store locally
-
-        //Send signature to the other radio
-        rf95.send(atecc.signature, sizeof(atecc.signature));
-        rf95.waitPacketSent();
-        SerialUSB.println("Sent signature");
-        //SerialUSB.println((char*)buf);
-        //SerialUSB.print(" RSSI: ");
-        //SerialUSB.print(rf95.lastRssi(), DEC);
-      }
-      else {
-        SerialUSB.println("Receive failed");
-      }
-    }
-    else {
-      SerialUSB.println("No reply, is the receiver running?");
-    }
-    delay(500);
+//    attempt_cycle();
   }
   delay(10); // button debounce
 }
@@ -197,4 +152,56 @@ void printSignature()
   }
   SerialUSB.println("};");
   SerialUSB.println();
+}
+
+void attempt_cycle()
+{
+  SerialUSB.println("Sending message");
+
+  //Send a message to the other radio
+  uint8_t toSend[] = "$$$";
+  //sprintf(toSend, "Hi, my counter is: %d", packetCounter++);
+  rf95.send(toSend, sizeof(toSend));
+  rf95.waitPacketSent();
+
+  // Now wait for a reply
+
+  byte len = sizeof(buf);
+
+  if (rf95.waitAvailableTimeout(2000)) {
+    // Should be a reply message for us now
+    if (rf95.recv(buf, &len)) {
+      SerialUSB.print("Got reply: ");
+      printBuf64();
+      for (int i = 0 ; i < 32 ; i++) token[i] = buf[i]; // read in token from buffer.
+      printToken(); // nice debug to see what token we just sent. see function below
+
+      boolean sigStat = false;
+      sigStat = atecc.createSignature(token); // by default, this uses the private key securely stored and locked in slot 0.
+
+      SerialUSB.print("sigStat: ");
+      SerialUSB.println(sigStat);
+
+      //printSignature();
+
+
+      // Copy our signature from library array to local toSend array
+      //for (int i = 0 ; i < 64 ; i++) toSend[i] = atecc.signature[i]; // store locally
+
+      //Send signature to the other radio
+      rf95.send(atecc.signature, sizeof(atecc.signature));
+      rf95.waitPacketSent();
+      SerialUSB.println("Sent signature");
+      //SerialUSB.println((char*)buf);
+      //SerialUSB.print(" RSSI: ");
+      //SerialUSB.print(rf95.lastRssi(), DEC);
+    }
+    else {
+      SerialUSB.println("Receive failed");
+    }
+  }
+  else {
+    SerialUSB.println("No reply, is the receiver running?");
+  }
+  delay(500);
 }
