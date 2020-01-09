@@ -24,6 +24,18 @@ float frequency = 921.2;
 
 uint8_t buf[RH_RF95_MAX_MESSAGE_LEN];
 
+
+////////////////relay
+
+#include "SparkFun_Qwiic_Relay.h"
+
+#define RELAY_ADDR 0x18 // Alternate address 0x19
+
+
+Qwiic_Relay relay(RELAY_ADDR);
+
+////////////////
+
 /////////////////crypto
 
 #include <SparkFun_ATECCX08a_Arduino_Library.h> //Click here to get the library: http://librarymanager/All#SparkFun_ATECCX08a
@@ -94,6 +106,16 @@ void setup()
     while (1); // stall out forever
   }
 
+  if (!relay.begin())
+  {
+    Serial.println("Check connections to Qwiic Relay.");
+    while (1); // stall out forever
+  }
+  else
+  {
+    Serial.println("Qwiic Relay is ready to go.");
+  }
+
 }
 
 void loop()
@@ -142,6 +164,11 @@ void loop()
         if (atecc.verifySignature(token, signature, AlicesPublicKey))
         {
           SerialUSB.println("Success! Signature Verified.");
+          // Let's turn on the relay...
+          relay.turnRelayOn();
+          delay(1000);
+          // Let's turn that relay off...
+          relay.turnRelayOff();
           blinkStatus(successLED);
         }
         else
