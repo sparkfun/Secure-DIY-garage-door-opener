@@ -1,8 +1,27 @@
 /*
-  Both the TX and RX ProRF boards will need a wire antenna. We recommend a 3" piece of wire.
-  This example is a modified version of the example provided by the Radio Head
+  Remote Control
+  This sketch is used to create a cryptographically secure wireless controller to open you garage.
+  The complete system uses SparkFun Pro RF modules, Cryptographic Co-processors, and the qwiic relay.
+  Note, it also requires a base transceiver setup with separate sketch.
+
+  See the complete tutorial here:
+  https://learn.sparkfun.com/tutorials/secure-diy-garage-door-opener
+  
+  By: Pete Lewis
+  SparkFun Electronics
+  Date: January 13th, 2020
+  License: This code is public domain but you can buy me a beer if you use this and we meet someday (Beerware license).
+
+  Feel like supporting our work? Please buy a board from SparkFun!
+  https://www.sparkfun.com/products/15573
+
+  Some of this code is a modified version of the example provided by the Radio Head
   Library which can be found here:
   www.github.com/PaulStoffregen/RadioHeadd
+
+  Some of this code is a modified version of the example provided by the SparkFun ATECCX08a
+  Arduino Library which can be found here:
+  https://github.com/sparkfun/SparkFun_ATECCX08a_Arduino_Library
 */
 
 #include <SPI.h>

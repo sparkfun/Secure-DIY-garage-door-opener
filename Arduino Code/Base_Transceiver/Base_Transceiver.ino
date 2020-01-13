@@ -1,3 +1,35 @@
+/*
+  Base Transceiver
+  This sketch is used to create a cryptographically secure wireless controller to open you garage.
+  The complete system uses SparkFun Pro RF modules, Cryptographic Co-processors, and the qwiic relay.
+  Note, it also requires a remote control setup with separate sketch.
+
+  See the complete tutorial here:
+  https://learn.sparkfun.com/tutorials/secure-diy-garage-door-opener
+  
+  By: Pete Lewis
+  SparkFun Electronics
+  Date: January 13th, 2020
+  License: This code is public domain but you can buy me a beer if you use this and we meet someday (Beerware license).
+
+  Feel like supporting our work? Please buy a board from SparkFun!
+  https://www.sparkfun.com/products/15573
+
+  Some of this code is a modified version of the example provided by the Radio Head
+  Library which can be found here:
+  www.github.com/PaulStoffregen/RadioHeadd
+
+  Some of this code is a modified version of the example provided by the SparkFun ATECCX08a
+  Arduino Library which can be found here:
+  https://github.com/sparkfun/SparkFun_ATECCX08a_Arduino_Library
+
+  Some of the code is a modified version of the example provided by the SparkFun Qwiic
+  Relay Arduino Library which can be found here:
+  https://github.com/sparkfun/SparkFun_Qwiic_Relay_Arduino_Library
+*/
+
+
+
 #include <SPI.h>
 
 //Radio Head Library:
@@ -49,7 +81,8 @@ uint8_t signature[64]; // incoming signature from Alice
 
 int headerCount = 0; // used to count incoming "$", when we reach 3 we know it's a good fresh new message.
 
-// Delete this "blank" public key,
+// Alice's public key.
+// Note, this will be unique to each co-processor, so your will be different.
 // copy/paste Alice's true unique public key from her terminal printout in Example6_Challenge_Alice.
 
 uint8_t AlicesPublicKey[64] = {
