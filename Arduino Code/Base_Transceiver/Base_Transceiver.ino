@@ -6,7 +6,7 @@
 
   See the complete tutorial here:
   https://learn.sparkfun.com/tutorials/secure-diy-garage-door-opener
-  
+
   By: Pete Lewis
   SparkFun Electronics
   Date: January 13th, 2020
@@ -220,6 +220,11 @@ void loop()
     digitalWrite(LED, LOW); //Turn off status LED
     timeSinceLastPacket = millis(); //Don't write LED but every 1s
     clearBuf();
+    // destory token, to require a new cycle if this doesn't complete within 1 second
+    for (int i = 0 ; i < 32 ; i++)
+    {
+      token[i] = 0x00;
+    }
   }
 }
 
