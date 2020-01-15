@@ -6,9 +6,7 @@ Using the SparkFun Cryptographic Co-processor, we created a secure garage door o
 
 At it's core, this project is a wire-less button controller. In this way, it could be used for many other applications. What might you like to use this security for?  
 
-Find the full tutorial here: https://learn.sparkfun.com/tutorials/secure-diy-garage-door-opener
-
-Original blog post here: https://www.sparkfun.com/news/3184
+Here's the [full tutorial](https://learn.sparkfun.com/tutorials/secure-diy-garage-door-opener) and original [blog post](https://www.sparkfun.com/news/3184).
 
 Products used:
 
