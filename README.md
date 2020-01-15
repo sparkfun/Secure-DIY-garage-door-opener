@@ -1,6 +1,6 @@
 # Secure DIY Garage Door Opener
 
-[![alt text](https://cdn.sparkfun.com/r/600-600/assets/learn_tutorials/1/1/1/3/press_open.jpg)](https://cdn.sparkfun.com/assets/learn_tutorials/1/1/1/3/press_open.jpg)
+[![alt text](https://raw.githubusercontent.com/lewispg228/Secure-DIY-garage-door-opener/master/thumbnail.jpg)](https://youtu.be/S7GRFRJbG7M)
 
 Using the SparkFun Cryptographic Co-processor, we created a secure garage door opener! This repository contains the source code for both the remote control and the base transceiver.
 
