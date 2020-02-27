@@ -26,6 +26,15 @@
   Some of the code is a modified version of the example provided by the SparkFun Qwiic
   Relay Arduino Library which can be found here:
   https://github.com/sparkfun/SparkFun_Qwiic_Relay_Arduino_Library
+
+  Changes 2/27/2020
+  As brought to my attention by SparkFun customer #437 in a comment on the tutorial
+  https://learn.sparkfun.com/tutorials/secure-diy-garage-door-opener/discuss#comment-5e54522397c4d30f2a423da3
+  previous code was susceptible to a reverse roll jam attack, where the attacker impersonates the base,
+  and prevents the base from invalidating the token by sending repeated invalid signatures.
+  Also, the fact that it was exposed in the source code that an invalid token was all 0x00s,
+  meant that the attacker to ask the remote to sign a null token (all 0x00s), and then use this
+  any time they wish. Thanks #437!!!
 */
 
 
@@ -80,6 +89,12 @@ uint8_t token[32]; // time to live token, created randomly each authentication e
 uint8_t signature[64]; // incoming signature from Alice
 
 int headerCount = 0; // used to count incoming "$", when we reach 3 we know it's a good fresh new message.
+
+#define VALID 1
+#define INVALID 0
+boolean tokenStatus = INVALID;  // used to keep track of a complete cycle (and prevent repeat false signature attempts)
+// true = currently ready to attempt a verification
+// false = timed out or a single verification success or failure has happened
 
 // Alice's public key.
 // Note, this will be unique to each co-processor, so your will be different.
@@ -173,15 +188,8 @@ void loop()
       {
         SerialUSB.println("Received $$$. Creating a new random TTL-token now...");
 
-        // update library instance public variable.
-        atecc.updateRandom32Bytes();
-
-        uint8_t toSend[32];
-        // copy from library public variable into our local variable
-        for (int i = 0 ; i < 32 ; i++)
-        {
-          token[i] = atecc.random32Bytes[i]; // store locally
-        }
+        refreshToken();
+        tokenStatus = VALID; // Keep track of status, this will be used later to prevent repeated invalid signature attempts
 
         rf95.send(token, sizeof(token));
         rf95.waitPacketSent();
@@ -190,24 +198,33 @@ void loop()
       }
       else // this means Alice just sent us a signature
       {
-        SerialUSB.println("Received signature. Verifying now...");
-        for (int i = 0 ; i < 64 ; i++) signature[i] = buf[i]; // read in signature from buffer.
-        printSignature();
-        // Let's verirfy!
-        if (atecc.verifySignature(token, signature, AlicesPublicKey))
+        if (tokenStatus == VALID)
         {
-          SerialUSB.println("Success! Signature Verified.");
-          // Let's turn on the relay...
-          relay.turnRelayOn();
-          delay(1000);
-          // Let's turn that relay off...
-          relay.turnRelayOff();
-          blinkStatus(successLED);
+          SerialUSB.println("Received signature. Verifying now...");
+          for (int i = 0 ; i < 64 ; i++) signature[i] = buf[i]; // read in signature from buffer.
+          printSignature();
+          // Let's verirfy!
+          if (atecc.verifySignature(token, signature, AlicesPublicKey))
+          {
+            SerialUSB.println("Success! Signature Verified.");
+            // Let's turn on the relay...
+            relay.turnRelayOn();
+            delay(1000);
+            // Let's turn that relay off...
+            relay.turnRelayOff();
+            blinkStatus(successLED);
+            tokenStatus = INVALID;
+          }
+          else
+          {
+            SerialUSB.println("Verification failure.");
+            blinkStatus(failLED);
+            tokenStatus = INVALID; // a single faliure now requires a complete new cycle (most importantly a new token)
+          }
         }
         else
         {
-          SerialUSB.println("Verification failure.");
-          blinkStatus(failLED);
+          SerialUSB.println("Received message. However, token status is currently INVALID...");
         }
       }
 
@@ -216,15 +233,18 @@ void loop()
       SerialUSB.println("Recieve failed");
   }
   //Turn off status LED if we haven't received a packet after 1s
-  if (millis() - timeSinceLastPacket > 1000) {
+  if ((millis() - timeSinceLastPacket > 1000) && (tokenStatus == VALID)) {
     digitalWrite(LED, LOW); //Turn off status LED
     timeSinceLastPacket = millis(); //Don't write LED but every 1s
     clearBuf();
-    // destory token, to require a new cycle if this doesn't complete within 1 second
-    for (int i = 0 ; i < 32 ; i++)
-    {
-      token[i] = 0x00;
-    }
+    // "destroy" token, to require a new cycle if this doesn't complete within 1 second
+    // Actually, we are not going to destroy the token, we are going to create a new random token
+    // using the crypto co-processor. This way the currently saved "bad" token is not exposed
+    // here in the source code.
+    SerialUSB.println("Timed Out...");
+    SerialUSB.println("Destroying Token (aka refreshing it so the contents of token is not exposed in source code)");
+    refreshToken();
+    tokenStatus = INVALID;
   }
 }
 
@@ -271,4 +291,16 @@ void blinkStatus(int LED)
   delay(2000);
   digitalWrite(LED, LOW);
   delay(500);
+}
+
+void refreshToken()
+{
+  // update library instance public variable.
+  atecc.updateRandom32Bytes();
+
+  // copy from library public variable into our local variable
+  for (int i = 0 ; i < 32 ; i++)
+  {
+    token[i] = atecc.random32Bytes[i]; // store locally
+  }
 }
