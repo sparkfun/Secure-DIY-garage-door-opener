@@ -6,7 +6,7 @@
 
   See the complete tutorial here:
   https://learn.sparkfun.com/tutorials/secure-diy-garage-door-opener
-  
+
   By: Pete Lewis
   SparkFun Electronics
   Date: January 13th, 2020
@@ -55,6 +55,14 @@ ATECCX08A atecc;
 
 uint8_t token[32]; // time to live token, created randomly each authentication event
 
+uint8_t BasePublicKey[64] = {
+  0x56, 0x4C, 0x07, 0x3C, 0x44, 0x3D, 0xF3, 0xC0, 0x2F, 0x3C, 0x7F, 0xCF, 0x39, 0xBF, 0x87, 0x31,
+  0x99, 0xCC, 0x10, 0x1A, 0x1F, 0xE5, 0x3F, 0x7B, 0xE7, 0x62, 0x9D, 0x82, 0xA6, 0xDB, 0xCC, 0xC6,
+  0x17, 0xCF, 0x9E, 0x1E, 0xEF, 0x19, 0x56, 0x37, 0x3E, 0xAB, 0x55, 0x3E, 0x87, 0x5F, 0x56, 0x61,
+  0xF9, 0xCB, 0x13, 0x58, 0x88, 0x58, 0xE9, 0xF4, 0x47, 0xDA, 0xD0, 0xCC, 0x3E, 0xDB, 0x59, 0xC3
+};
+
+uint8_t baseSignature[64]; // used to store incoming signature from Base
 
 /////////////
 
@@ -117,17 +125,17 @@ void loop()
 
   if (digitalRead(5) == LOW)
   {
-//    attempt_cycle();
+    //    attempt_cycle();
   }
   delay(10); // button debounce
 }
 
 
-void printBuf64()
+void printBuf96()
 {
   SerialUSB.println();
-  SerialUSB.println("uint8_t buf[64] = {");
-  for (int i = 0; i < 32 ; i++)
+  SerialUSB.println("uint8_t buf[96] = {");
+  for (int i = 0; i < 96 ; i++)
   {
     SerialUSB.print("0x");
     if ((buf[i] >> 4) == 0) SerialUSB.print("0"); // print preceeding high nibble if it's zero
@@ -191,29 +199,40 @@ void attempt_cycle()
     // Should be a reply message for us now
     if (rf95.recv(buf, &len)) {
       SerialUSB.print("Got reply: ");
-      printBuf64();
+      printBuf96();
       for (int i = 0 ; i < 32 ; i++) token[i] = buf[i]; // read in token from buffer.
       printToken(); // nice debug to see what token we just sent. see function below
 
-      boolean sigStat = false;
-      sigStat = atecc.createSignature(token); // by default, this uses the private key securely stored and locked in slot 0.
+      for (int i = 0 ; i < 64 ; i++) baseSignature[i] = buf[i + 32]; // read in Base signature from buffer.
+      printBaseSignature(); // nice debug to see what signautre we just received. see function below
 
-      SerialUSB.print("sigStat: ");
-      SerialUSB.println(sigStat);
+      // Let's verirfy the base is legit!
+      if (atecc.verifySignature(token, baseSignature, BasePublicKey))
+      {
+        SerialUSB.println("Success! Base Signature Verified.");
 
-      //printSignature();
+        SerialUSB.println("\n\rCreating signature with TTL-token and my private key (remote)...");
+        
+        boolean sigStat = false;
+        sigStat = atecc.createSignature(token); // by default, this uses the private key securely stored and locked in slot 0.
 
+        SerialUSB.print("sigStat: ");
+        SerialUSB.println(sigStat);
 
-      // Copy our signature from library array to local toSend array
-      //for (int i = 0 ; i < 64 ; i++) toSend[i] = atecc.signature[i]; // store locally
-
-      //Send signature to the other radio
-      rf95.send(atecc.signature, sizeof(atecc.signature));
-      rf95.waitPacketSent();
-      SerialUSB.println("Sent signature");
-      //SerialUSB.println((char*)buf);
-      //SerialUSB.print(" RSSI: ");
-      //SerialUSB.print(rf95.lastRssi(), DEC);
+        //printSignature();
+        
+        //Send signature to the Base
+        rf95.send(atecc.signature, sizeof(atecc.signature));
+        rf95.waitPacketSent();
+        SerialUSB.println("\n\rSent signature!");
+        //SerialUSB.println((char*)buf);
+        //SerialUSB.print(" RSSI: ");
+        //SerialUSB.print(rf95.lastRssi(), DEC);
+      }
+      else
+      {
+        SerialUSB.println("Base Verification failure. Ignoring...");
+      }
     }
     else {
       SerialUSB.println("Receive failed");
@@ -223,4 +242,19 @@ void attempt_cycle()
     SerialUSB.println("No reply, is the receiver running?");
   }
   delay(500);
+}
+
+void printBaseSignature()
+{
+  SerialUSB.println("uint8_t baseSignature[64] = {");
+  for (int i = 0; i < sizeof(baseSignature) ; i++)
+  {
+    SerialUSB.print("0x");
+    if ((baseSignature[i] >> 4) == 0) SerialUSB.print("0"); // print preceeding high nibble if it's zero
+    SerialUSB.print(baseSignature[i], HEX);
+    if (i != 63) SerialUSB.print(", ");
+    if ((63 - i) % 16 == 0) SerialUSB.println();
+  }
+  SerialUSB.println("};");
+  SerialUSB.println();
 }

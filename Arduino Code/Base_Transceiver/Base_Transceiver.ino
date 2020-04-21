@@ -100,7 +100,7 @@ boolean tokenStatus = INVALID;  // used to keep track of a complete cycle (and p
 // Note, this will be unique to each co-processor, so your will be different.
 // copy/paste Alice's true unique public key from her terminal printout in Example6_Challenge_Alice.
 
-uint8_t AlicesPublicKey[64] = {
+uint8_t RemotePublicKey[64] = {
   0x38, 0xD6, 0xE5, 0x49, 0xAC, 0x57, 0x2D, 0x1F, 0xD0, 0x58, 0x0A, 0xE8, 0x59, 0xB8, 0xF8, 0x20,
   0x1E, 0x0A, 0x7E, 0x8D, 0x5B, 0x7D, 0xD9, 0x8A, 0x26, 0xAF, 0x88, 0x73, 0x6D, 0x8C, 0xB7, 0x2D,
   0x8D, 0x3A, 0xB9, 0x5F, 0x60, 0x9D, 0x3F, 0x49, 0x72, 0xF1, 0x44, 0x74, 0x82, 0x3F, 0x7B, 0xCF,
@@ -190,10 +190,23 @@ void loop()
 
         refreshToken();
         tokenStatus = VALID; // Keep track of status, this will be used later to prevent repeated invalid signature attempts
+        printToken();
 
-        rf95.send(token, sizeof(token));
+        // Create a signature on the newly refreshed token
+        SerialUSB.println("Creating signature with TTL-token and my private key (base)...");
+        boolean sigStat = false;
+        sigStat = atecc.createSignature(token); // by default, this uses the private key securely stored and locked in slot 0.
+        SerialUSB.print("sigStat: ");
+        SerialUSB.println(sigStat);
+        printBaseSignature();
+
+        uint8_t toSend[96]; // buffer to send to remote (32 for token + 64 for base's signature = 96 total)
+        for (int i = 0 ; i < 32 ; i++) toSend[i] = token[i]; // place token in first 32 bytes of toSend
+        for (int i = 0 ; i < 64 ; i++) toSend[i + 32] = atecc.signature[i]; // place base's signature of token in reamining 64 bytes of toSend
+
+        rf95.send(toSend, sizeof(toSend));
         rf95.waitPacketSent();
-        SerialUSB.println("Sent token");
+        SerialUSB.println("Sent token + Base signature");
         digitalWrite(LED, LOW); //Turn off status LED
       }
       else // this means Alice just sent us a signature
@@ -204,7 +217,7 @@ void loop()
           for (int i = 0 ; i < 64 ; i++) signature[i] = buf[i]; // read in signature from buffer.
           printSignature();
           // Let's verirfy!
-          if (atecc.verifySignature(token, signature, AlicesPublicKey))
+          if (atecc.verifySignature(token, signature, RemotePublicKey))
           {
             SerialUSB.println("Success! Signature Verified.");
             // Let's turn on the relay...
@@ -264,6 +277,21 @@ void printSignature()
   SerialUSB.println();
 }
 
+void printBaseSignature()
+{
+  SerialUSB.println("uint8_t BASEsignature[64] = {");
+  for (int i = 0; i < sizeof(atecc.signature) ; i++)
+  {
+    SerialUSB.print("0x");
+    if ((atecc.signature[i] >> 4) == 0) SerialUSB.print("0"); // print preceeding high nibble if it's zero
+    SerialUSB.print(atecc.signature[i], HEX);
+    if (i != 63) SerialUSB.print(", ");
+    if ((63 - i) % 16 == 0) SerialUSB.println();
+  }
+  SerialUSB.println("};");
+  SerialUSB.println();
+}
+
 void printBuf64()
 {
   SerialUSB.println();
@@ -303,4 +331,20 @@ void refreshToken()
   {
     token[i] = atecc.random32Bytes[i]; // store locally
   }
+}
+
+void printToken()
+{
+  SerialUSB.println();
+  SerialUSB.println("uint8_t token[32] = {");
+  for (int i = 0; i < sizeof(token) ; i++)
+  {
+    SerialUSB.print("0x");
+    if ((token[i] >> 4) == 0) SerialUSB.print("0"); // print preceeding high nibble if it's zero
+    SerialUSB.print(token[i], HEX);
+    if (i != 31) SerialUSB.print(", ");
+    if ((31 - i) % 16 == 0) SerialUSB.println();
+  }
+  SerialUSB.println("};");
+  SerialUSB.println();
 }
